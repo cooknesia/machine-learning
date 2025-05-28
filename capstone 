@@ -1,0 +1,735 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "id": "Cq-_MTc_O_W1"
+      },
+      "outputs": [],
+      "source": [
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "import re\n",
+        "from sklearn.feature_extraction.text import TfidfVectorizer\n",
+        "from sklearn.preprocessing import LabelEncoder\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from sklearn.metrics.pairwise import cosine_similarity\n",
+        "from tensorflow.keras.models import Sequential\n",
+        "from tensorflow.keras.layers import Dense, Dropout\n",
+        "from tensorflow.keras.utils import to_categorical"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Load data\n",
+        "df = pd.read_excel(\"/content/data_recipe_kecil.xlsx\")\n",
+        "kolom_yang_dihapus = ['province_id','click_count','gambar','deskripsi']\n",
+        "df.drop(columns=kolom_yang_dihapus, inplace=True)"
+      ],
+      "metadata": {
+        "id": "0cZPTOD4PZua"
+      },
+      "execution_count": 2,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"\\nDataFrame setelah menghapus kolom yang tidak penting:\")\n",
+        "print(df.head())"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "bvNdO4T8RUvv",
+        "outputId": "a6bdb688-0fc0-4a2c-d862-aad22c4ffcbd"
+      },
+      "execution_count": 3,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\n",
+            "DataFrame setelah menghapus kolom yang tidak penting:\n",
+            "   food_id                       nama_makanan  \\\n",
+            "0      1.0  Bubur sumsum pandan Dapurnya Lusy   \n",
+            "1      2.0                    Tumis Toge Tahu   \n",
+            "2      3.0   Tumis Brokoli Wortel Bakso Sosis   \n",
+            "3      4.0                             Klepon   \n",
+            "4      5.0            Donat empuk tanpa telur   \n",
+            "\n",
+            "                                         bahan_bahan  \n",
+            "0  [\"350 ml santan\",\"200 ml air matang\",\"50 gr gu...  \n",
+            "1  [\"secukupnya Garam, lada bubuk dan gula pasir\"...  \n",
+            "2  [\"1 buah Brokoli yg kecil\",\"1 buah wortel ukur...  \n",
+            "3  [\"100 gram gula merah potong kecil-kecil\",\"100...  \n",
+            "4  [\"250 gr tepung cakra\",\"1/2 sdt garam\",\"3 sdm ...  \n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.info()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Lx4pYM4_TTIn",
+        "outputId": "5da5e9c4-951e-4a4f-c177-60e8f01327f0"
+      },
+      "execution_count": 4,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "<class 'pandas.core.frame.DataFrame'>\n",
+            "RangeIndex: 16618 entries, 0 to 16617\n",
+            "Data columns (total 3 columns):\n",
+            " #   Column        Non-Null Count  Dtype  \n",
+            "---  ------        --------------  -----  \n",
+            " 0   food_id       16595 non-null  float64\n",
+            " 1   nama_makanan  16616 non-null  object \n",
+            " 2   bahan_bahan   16579 non-null  object \n",
+            "dtypes: float64(1), object(2)\n",
+            "memory usage: 389.6+ KB\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.isnull().sum()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 178
+        },
+        "id": "qZSGV9eUTedv",
+        "outputId": "a5f5ad88-1ebe-4d0e-c29e-377d332912a1"
+      },
+      "execution_count": 5,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "food_id         23\n",
+              "nama_makanan     2\n",
+              "bahan_bahan     39\n",
+              "dtype: int64"
+            ],
+            "text/html": [
+              "<div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>0</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>food_id</th>\n",
+              "      <td>23</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>nama_makanan</th>\n",
+              "      <td>2</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>bahan_bahan</th>\n",
+              "      <td>39</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "</div><br><label><b>dtype:</b> int64</label>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 5
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.dropna(inplace=True)"
+      ],
+      "metadata": {
+        "id": "VYAf8WFiTi-8"
+      },
+      "execution_count": 6,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.isnull().sum()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 178
+        },
+        "id": "u95kffApTw0Z",
+        "outputId": "7b51877a-1720-4bf4-f640-884143dcb7a3"
+      },
+      "execution_count": 7,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "food_id         0\n",
+              "nama_makanan    0\n",
+              "bahan_bahan     0\n",
+              "dtype: int64"
+            ],
+            "text/html": [
+              "<div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>0</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>food_id</th>\n",
+              "      <td>0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>nama_makanan</th>\n",
+              "      <td>0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>bahan_bahan</th>\n",
+              "      <td>0</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "</div><br><label><b>dtype:</b> int64</label>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 7
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.drop_duplicates(inplace=True)"
+      ],
+      "metadata": {
+        "id": "4_wC9usFT5Zr"
+      },
+      "execution_count": 8,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.info()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "TetFH_P8T8km",
+        "outputId": "d445de65-e2f8-4fe7-b577-891c534f427a"
+      },
+      "execution_count": 9,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "<class 'pandas.core.frame.DataFrame'>\n",
+            "Index: 16577 entries, 0 to 16617\n",
+            "Data columns (total 3 columns):\n",
+            " #   Column        Non-Null Count  Dtype  \n",
+            "---  ------        --------------  -----  \n",
+            " 0   food_id       16577 non-null  float64\n",
+            " 1   nama_makanan  16577 non-null  object \n",
+            " 2   bahan_bahan   16577 non-null  object \n",
+            "dtypes: float64(1), object(2)\n",
+            "memory usage: 518.0+ KB\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "!pip install Sastrawi\n",
+        "!pip install nltk\n",
+        "from Sastrawi.Stemmer.StemmerFactory import StemmerFactory\n",
+        "from nltk.corpus import stopwords"
+      ],
+      "metadata": {
+        "id": "E2KKaRTYRZxt",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "05e54db2-95ef-4543-b42e-3cfa9af6e768"
+      },
+      "execution_count": 10,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Collecting Sastrawi\n",
+            "  Downloading Sastrawi-1.0.1-py2.py3-none-any.whl.metadata (909 bytes)\n",
+            "Downloading Sastrawi-1.0.1-py2.py3-none-any.whl (209 kB)\n",
+            "\u001b[2K   \u001b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m \u001b[32m209.7/209.7 kB\u001b[0m \u001b[31m3.0 MB/s\u001b[0m eta \u001b[36m0:00:00\u001b[0m\n",
+            "\u001b[?25hInstalling collected packages: Sastrawi\n",
+            "Successfully installed Sastrawi-1.0.1\n",
+            "Requirement already satisfied: nltk in /usr/local/lib/python3.11/dist-packages (3.9.1)\n",
+            "Requirement already satisfied: click in /usr/local/lib/python3.11/dist-packages (from nltk) (8.2.1)\n",
+            "Requirement already satisfied: joblib in /usr/local/lib/python3.11/dist-packages (from nltk) (1.5.0)\n",
+            "Requirement already satisfied: regex>=2021.8.3 in /usr/local/lib/python3.11/dist-packages (from nltk) (2024.11.6)\n",
+            "Requirement already satisfied: tqdm in /usr/local/lib/python3.11/dist-packages (from nltk) (4.67.1)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Buat stemmer\n",
+        "factory = StemmerFactory()\n",
+        "stemmer = factory.create_stemmer()\n",
+        "\n",
+        "# Download the stopwords corpus if not already present\n",
+        "import nltk\n",
+        "try:\n",
+        "    stop_words = set(stopwords.words('indonesian'))\n",
+        "except LookupError:\n",
+        "    nltk.download('stopwords')\n",
+        "    stop_words = set(stopwords.words('indonesian'))\n",
+        "\n",
+        "\n",
+        "def clean_text(text):\n",
+        "    text = str(text).lower()\n",
+        "    text = re.sub(r'[^a-z\\s]', ' ', text)\n",
+        "    text = re.sub(r'\\s+', ' ', text).strip()\n",
+        "    text = ' '.join(word for word in text.split() if word not in stop_words)  # hapus stopword\n",
+        "    text = stemmer.stem(text)  # stemming\n",
+        "    return text\n",
+        "\n",
+        "df['cleaned_bahan'] = df['bahan_bahan'].apply(clean_text)"
+      ],
+      "metadata": {
+        "id": "KsgjUVzVTITi",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "41de3a86-f368-4490-df4b-5c31ce3c1cc2"
+      },
+      "execution_count": 11,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "[nltk_data] Downloading package stopwords to /root/nltk_data...\n",
+            "[nltk_data]   Unzipping corpora/stopwords.zip.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(df.head())"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "nJO8pV0WUKHZ",
+        "outputId": "73472c83-8587-4ff2-c546-b28ce9564b9d"
+      },
+      "execution_count": 12,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "   food_id                       nama_makanan  \\\n",
+            "0      1.0  Bubur sumsum pandan Dapurnya Lusy   \n",
+            "1      2.0                    Tumis Toge Tahu   \n",
+            "2      3.0   Tumis Brokoli Wortel Bakso Sosis   \n",
+            "3      4.0                             Klepon   \n",
+            "4      5.0            Donat empuk tanpa telur   \n",
+            "\n",
+            "                                         bahan_bahan  \\\n",
+            "0  [\"350 ml santan\",\"200 ml air matang\",\"50 gr gu...   \n",
+            "1  [\"secukupnya Garam, lada bubuk dan gula pasir\"...   \n",
+            "2  [\"1 buah Brokoli yg kecil\",\"1 buah wortel ukur...   \n",
+            "3  [\"100 gram gula merah potong kecil-kecil\",\"100...   \n",
+            "4  [\"250 gr tepung cakra\",\"1/2 sdt garam\",\"3 sdm ...   \n",
+            "\n",
+            "                                       cleaned_bahan  \n",
+            "0  ml santan ml air matang gr gula merah gr garam...  \n",
+            "1  garam lada bubuk gula pasir batang daun bawang...  \n",
+            "2  buah brokoli yg buah wortel ukur buah bakso le...  \n",
+            "3  gram gula merah potong ml air panas tetes esen...  \n",
+            "4  gr tepung cakra sdt garam sdm peres gula pasir...  \n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Vectorization\n",
+        "vectorizer = TfidfVectorizer()\n",
+        "X = vectorizer.fit_transform(df['cleaned_bahan'])"
+      ],
+      "metadata": {
+        "id": "e3vUL2qHZj-p"
+      },
+      "execution_count": 13,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Encode ID Resep sebagai label\n",
+        "le = LabelEncoder()\n",
+        "y = le.fit_transform(df['food_id'])\n",
+        "y_cat = to_categorical(y)"
+      ],
+      "metadata": {
+        "id": "VQPP78ymZq10"
+      },
+      "execution_count": 14,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Train-test split\n",
+        "X_train, X_test, y_train, y_test = train_test_split(X.toarray(), y_cat, test_size=0.2, random_state=42)"
+      ],
+      "metadata": {
+        "id": "RXa3BRDbZvmK"
+      },
+      "execution_count": 15,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Arsitektur model TensorFlow\n",
+        "model = Sequential([\n",
+        "    Dense(512, activation='relu', input_shape=(X_train.shape[1],)),\n",
+        "    Dropout(0.3),\n",
+        "    Dense(256, activation='relu'),\n",
+        "    Dropout(0.2),\n",
+        "    Dense(y_cat.shape[1], activation='softmax')\n",
+        "])\n",
+        "model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])\n",
+        "model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=20, batch_size=32)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "y972UMa3zdZB",
+        "outputId": "b409f128-d289-41b7-edc5-acc82b0594a8"
+      },
+      "execution_count": 16,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.11/dist-packages/keras/src/layers/core/dense.py:87: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.\n",
+            "  super().__init__(activity_regularizer=activity_regularizer, **kwargs)\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Epoch 1/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m51s\u001b[0m 118ms/step - accuracy: 0.0000e+00 - loss: 9.7365 - val_accuracy: 0.0000e+00 - val_loss: 9.8867\n",
+            "Epoch 2/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m79s\u001b[0m 111ms/step - accuracy: 0.0000e+00 - loss: 9.6729 - val_accuracy: 0.0000e+00 - val_loss: 10.1792\n",
+            "Epoch 3/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m82s\u001b[0m 111ms/step - accuracy: 2.0565e-04 - loss: 9.5173 - val_accuracy: 0.0000e+00 - val_loss: 10.5691\n",
+            "Epoch 4/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m83s\u001b[0m 113ms/step - accuracy: 0.0025 - loss: 8.8468 - val_accuracy: 0.0000e+00 - val_loss: 11.5685\n",
+            "Epoch 5/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m81s\u001b[0m 112ms/step - accuracy: 0.0160 - loss: 7.6399 - val_accuracy: 0.0000e+00 - val_loss: 12.8102\n",
+            "Epoch 6/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m84s\u001b[0m 116ms/step - accuracy: 0.0690 - loss: 6.1859 - val_accuracy: 0.0000e+00 - val_loss: 14.3785\n",
+            "Epoch 7/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m81s\u001b[0m 115ms/step - accuracy: 0.1989 - loss: 4.5880 - val_accuracy: 0.0000e+00 - val_loss: 15.7851\n",
+            "Epoch 8/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m48s\u001b[0m 114ms/step - accuracy: 0.3439 - loss: 3.4111 - val_accuracy: 0.0000e+00 - val_loss: 16.6483\n",
+            "Epoch 9/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m50s\u001b[0m 121ms/step - accuracy: 0.4800 - loss: 2.5069 - val_accuracy: 0.0000e+00 - val_loss: 17.7262\n",
+            "Epoch 10/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m78s\u001b[0m 112ms/step - accuracy: 0.5816 - loss: 1.9481 - val_accuracy: 0.0000e+00 - val_loss: 18.4796\n",
+            "Epoch 11/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m83s\u001b[0m 115ms/step - accuracy: 0.6489 - loss: 1.5659 - val_accuracy: 0.0000e+00 - val_loss: 18.9394\n",
+            "Epoch 12/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m83s\u001b[0m 118ms/step - accuracy: 0.6940 - loss: 1.3064 - val_accuracy: 0.0000e+00 - val_loss: 19.3934\n",
+            "Epoch 13/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m80s\u001b[0m 113ms/step - accuracy: 0.7384 - loss: 1.0970 - val_accuracy: 0.0000e+00 - val_loss: 19.8166\n",
+            "Epoch 14/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m83s\u001b[0m 116ms/step - accuracy: 0.7825 - loss: 0.9255 - val_accuracy: 0.0000e+00 - val_loss: 19.8213\n",
+            "Epoch 15/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m81s\u001b[0m 113ms/step - accuracy: 0.7960 - loss: 0.8310 - val_accuracy: 0.0000e+00 - val_loss: 20.2191\n",
+            "Epoch 16/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m85s\u001b[0m 120ms/step - accuracy: 0.8141 - loss: 0.7439 - val_accuracy: 0.0000e+00 - val_loss: 20.5574\n",
+            "Epoch 17/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m83s\u001b[0m 122ms/step - accuracy: 0.8292 - loss: 0.6635 - val_accuracy: 0.0000e+00 - val_loss: 20.7845\n",
+            "Epoch 18/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m79s\u001b[0m 114ms/step - accuracy: 0.8414 - loss: 0.5931 - val_accuracy: 0.0000e+00 - val_loss: 20.9459\n",
+            "Epoch 19/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m84s\u001b[0m 118ms/step - accuracy: 0.8575 - loss: 0.5482 - val_accuracy: 0.0000e+00 - val_loss: 21.2401\n",
+            "Epoch 20/20\n",
+            "\u001b[1m415/415\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m50s\u001b[0m 121ms/step - accuracy: 0.8722 - loss: 0.5042 - val_accuracy: 0.0000e+00 - val_loss: 21.3711\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<keras.src.callbacks.history.History at 0x7c2d56c6da50>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 16
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def recommend_recipe_ids(user_input, top_k=5):\n",
+        "    if not user_input or not isinstance(user_input, str):\n",
+        "        return \"Input bahan tidak valid.\"\n",
+        "\n",
+        "    cleaned_input = clean_text(user_input)\n",
+        "    user_vec = vectorizer.transform([cleaned_input])\n",
+        "\n",
+        "    # Cosine similarity\n",
+        "    similarities = cosine_similarity(user_vec, X).flatten()\n",
+        "    top_indices = similarities.argsort()[-top_k:][::-1]\n",
+        "\n",
+        "    # Output ID resep dan similarity\n",
+        "    results = []\n",
+        "    for idx in top_indices:\n",
+        "        resep_id = int(df.iloc[idx]['food_id'])\n",
+        "        similarity_score = round(similarities[idx], 4)\n",
+        "        results.append({\"food_id\": resep_id, \"Similarity\": similarity_score})\n",
+        "\n",
+        "    return results"
+      ],
+      "metadata": {
+        "id": "c0LyCo1qzxP8"
+      },
+      "execution_count": 17,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# --- Contoh Penggunaan ---\n",
+        "user_input = \"ganja\"\n",
+        "rekomendasi = recommend_recipe_ids(user_input)\n",
+        "\n",
+        "print(\"Rekomendasi ID Resep:\")\n",
+        "for r in rekomendasi:\n",
+        "    print(r)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "AapkvS_KCMHs",
+        "outputId": "aea1f666-b1a1-494c-e3a6-c52924362442"
+      },
+      "execution_count": 20,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Rekomendasi ID Resep:\n",
+            "{'food_id': 1, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 17, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 18, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 19, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 20, 'Similarity': np.float64(0.0)}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "user_input = \"asdksofwfmx\"\n",
+        "rekomendasi = recommend_recipe_ids(user_input)\n",
+        "\n",
+        "print(\"Rekomendasi ID Resep:\")\n",
+        "for r in rekomendasi:\n",
+        "    print(r)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "FJfYLGgzu6dB",
+        "outputId": "aa3ac349-9e2c-4d25-a184-df222234132b"
+      },
+      "execution_count": 21,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Rekomendasi ID Resep:\n",
+            "{'food_id': 1, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 17, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 18, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 19, 'Similarity': np.float64(0.0)}\n",
+            "{'food_id': 20, 'Similarity': np.float64(0.0)}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "user_input = \"nasi telur ayam\"\n",
+        "rekomendasi = recommend_recipe_ids(user_input)\n",
+        "\n",
+        "print(\"Rekomendasi ID Resep:\")\n",
+        "for r in rekomendasi:\n",
+        "    print(r)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "jWzxFOwVvBUk",
+        "outputId": "fa372ca1-b71d-437b-b20e-fec7b485ce50"
+      },
+      "execution_count": 26,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Rekomendasi ID Resep:\n",
+            "{'food_id': 11686, 'Similarity': np.float64(0.6454)}\n",
+            "{'food_id': 5205, 'Similarity': np.float64(0.6363)}\n",
+            "{'food_id': 16698, 'Similarity': np.float64(0.5711)}\n",
+            "{'food_id': 13416, 'Similarity': np.float64(0.5693)}\n",
+            "{'food_id': 6683, 'Similarity': np.float64(0.5515)}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import joblib\n",
+        "\n",
+        "# 1. Simpan model Keras (TensorFlow)\n",
+        "model.save(\"resep_model.h5\")\n",
+        "\n",
+        "# 2. Simpan TF-IDF Vectorizer\n",
+        "joblib.dump(vectorizer, \"vectorizer.pkl\")\n",
+        "\n",
+        "# 3. Simpan Label Encoder\n",
+        "joblib.dump(le, \"label_encoder.pkl\")\n",
+        "\n",
+        "print(\"✅ Model dan semua komponen berhasil disimpan.\")"
+      ],
+      "metadata": {
+        "id": "ChXkb29FEEao",
+        "outputId": "074b92cc-8f1e-47c6-9c64-fbf02b229611",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "execution_count": 27,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "✅ Model dan semua komponen berhasil disimpan.\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
